@@ -426,12 +426,7 @@ cat > "$CREDENTIALS_FILE" <<EOF
    URL: http://${DOMAIN}/phpmyadmin
    Пользователь: ${MYSQL_USER}
    Пароль: ${MYSQL_PASS}
- FTP:
-   Хост: ${PUBLIC_IP} (внешний) или ${LOCAL_IP} (локальный)
-   Порт: 21
-   Пользователь: ${FTP_USER}
-   Пароль: ${FTP_PASS}
-   Режим: Пассивный (Passive)
+
  XenForo:
    URL: http://${DOMAIN}
    База данных: ${MYSQL_DB}
@@ -474,6 +469,11 @@ echo ""
 echo -e "${YELLOW}⚙️  Настройки FTP-клиента:${NC}"
 echo -e "   • Локально:  ${LOCAL_IP}:21 (Пассивный режим)"
 echo -e "   • Внешне:    ${PUBLIC_IP}:21 (Пассивный режим)"
+echo -e "      Хост: ${PUBLIC_IP} (внешний) или ${LOCAL_IP} (локальный)"
+echo -e "      Порт: 21"
+echo -e "      Пользователь: ${FTP_USER}"
+echo -e "      Пароль: ${FTP_PASS}"
+echo -e "      Режим: Пассивный (Passive)"
 echo ""
 echo -e "${YELLOW}📝 Для завершения установки XenForo (если CLI не сработал):${NC}"
 echo -e "   1. Откройте http://${DOMAIN}/install/ в режиме ИНКОГНИТО"
@@ -487,3 +487,4 @@ echo -e "   • Смените пароли после установки!"
 echo ""
 
 cat "$CREDENTIALS_FILE"
+
