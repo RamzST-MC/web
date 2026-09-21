@@ -410,7 +410,7 @@ cd /
 #  Итог - СОХРАНЯЕМ ПАРОЛИ В ФАЙЛ
 # ==========================================================
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "не определён")
-CREDENTIALS_FILE="/root/server_credentials_${DOMAIN}.txt"
+CREDENTIALS_FILE="/var/www/{DOMAIN}/server_credentials_${DOMAIN}.txt"
 cat > "$CREDENTIALS_FILE" <<EOF
 ========================================
 ДАННЫЕ ДОСТУПА ДЛЯ ${DOMAIN}
