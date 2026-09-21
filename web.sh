@@ -21,7 +21,6 @@ MYSQL_USER="xenforo_user"
 PASV_MIN=40000
 PASV_MAX=40100
 
-# Генерация паролей ТОЛЬКО из букв и цифр (без спецсимволов!)
 echo -e "${YELLOW}Генерация случайных паролей (без спецсимволов)...${NC}"
 MYSQL_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
 FTP_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
@@ -160,13 +159,8 @@ fi
 #  ИСПРАВЛЕНО: Создаём config.php в НУЖНОМ вам формате
 # ==========================================================
 echo -e "${YELLOW}Создание config.php в правильном формате...${NC}"
-
-# Удаляем старый файл, если он есть
 rm -f "$WEB_ROOT/src/config.php"
 
-# Создаём файл с форматом $config['db']['...']
-# Обратите внимание: \$config экранирован, чтобы bash не пытался его интерпретировать, 
-# а ${MYSQL_USER} и другие переменные подставятся корректно.
 cat > "$WEB_ROOT/src/config.php" <<XENCONFIG
 <?php
 
@@ -184,7 +178,6 @@ XENCONFIG
 chown www-data:www-data "$WEB_ROOT/src/config.php"
 chmod 644 "$WEB_ROOT/src/config.php"
 
-# ПРОВЕРКА: читаем файл через PHP в новом формате
 echo -e "${YELLOW}Проверка чтения config.php...${NC}"
 if sudo -u www-data php -r "
 require '${WEB_ROOT}/src/config.php';
@@ -201,11 +194,10 @@ else
     exit 1
 fi
 
-# Перезапускаем PHP-FPM для сброса кеша OPCache
 systemctl restart php${PHP_VER}-fpm
 
 # ==========================================================
-#  8. Настройка Nginx для XenForo
+#  8. Настройка Nginx для XenForo (ЗДЕСЬ ЗАДАНЫ PHP_VALUE)
 # ==========================================================
 echo -e "\n${YELLOW}[8/12] Настройка Nginx для XenForo...${NC}"
 cat <<NGINX_CONF > /etc/nginx/sites-available/${DOMAIN}
@@ -221,31 +213,38 @@ server {
     fastcgi_busy_buffers_size 256k;
     access_log /var/log/nginx/${DOMAIN}-access.log;
     error_log /var/log/nginx/${DOMAIN}-error.log;
+    
     location ~* \.(jpg|jpeg|gif|png|css|js|ico|webp|tiff|ttf|svg|woff|woff2|eot|mp4|webm|ogg|mp3|wav|flac|pdf)\$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
         log_not_found off;
         access_log off;
     }
+    
     location ~* /(composer\.json|composer\.lock|phpunit\.xml|\.git) {
         deny all;
     }
+    
     location ~ \.php\$ {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:${PHP_SOCK};
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        fastcgi_param PHP_VALUE "upload_max_filesize=100M post_max_size=100M max_execution_time=300 memory_limit=256M";
+        # ✅ ПРАВИЛЬНЫЙ СПОСОБ задать лимиты PHP для Nginx + PHP-FPM
+        fastcgi_param PHP_VALUE "upload_max_filesize=64M post_max_size=64M max_execution_time=300 max_input_time=300";
         include fastcgi_params;
         fastcgi_read_timeout 300;
     }
+    
     location ~ /\. {
         deny all;
         access_log off;
         log_not_found off;
     }
+    
     location / {
         try_files \$uri \$uri/ @apache;
     }
+    
     location @apache {
         proxy_pass http://127.0.0.1:${APACHE_PORT};
         proxy_set_header Host \$host;
@@ -259,7 +258,7 @@ rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/${DOMAIN} /etc/nginx/sites-enabled/
 
 # ==========================================================
-#  9. Настройка Apache для XenForo
+#  9. Настройка Apache для XenForo (БЕЗ php_value)
 # ==========================================================
 echo -e "\n${YELLOW}[9/12] Настройка Apache для XenForo...${NC}"
 cat <<APACHE_CONF > /etc/apache2/sites-available/${DOMAIN}.conf
@@ -267,10 +266,12 @@ cat <<APACHE_CONF > /etc/apache2/sites-available/${DOMAIN}.conf
     ServerName ${DOMAIN}
     ServerAlias www.${DOMAIN}
     DocumentRoot ${WEB_ROOT}
+    
     <Directory ${WEB_ROOT}>
         Options -Indexes +FollowSymLinks
         AllowOverride All
         Require all granted
+        
         RewriteEngine On
         RewriteCond %{REQUEST_FILENAME} -f [OR]
         RewriteCond %{REQUEST_FILENAME} -l [OR]
@@ -278,12 +279,15 @@ cat <<APACHE_CONF > /etc/apache2/sites-available/${DOMAIN}.conf
         RewriteRule ^.*$ - [NC,L]
         RewriteRule ^.*$ index.php [NC,L]
     </Directory>
+    
     <Directory ${WEB_ROOT}/internal_data>
         Require all denied
     </Directory>
+    
     <Directory ${WEB_ROOT}/src>
         Require all denied
     </Directory>
+    
     ErrorLog \${APACHE_LOG_DIR}/${DOMAIN}-error.log
     CustomLog \${APACHE_LOG_DIR}/${DOMAIN}-access.log combined
 </VirtualHost>
@@ -374,168 +378,116 @@ fi
 netfilter-persistent save 2>/dev/null || true
 
 # ==========================================================
-#  12. Перезапуск служб + АВТОУСТАНОВКА XENFORO
+#  12. Перезапуск служб + ИНСТРУКЦИЯ ПО УСТАНОВКЕ
 # ==========================================================
-echo -e "\n${YELLOW}[12/12] Проверка, запуск служб и автоустановка XenForo...${NC}"
+echo -e "\n${YELLOW}[12/12] Проверка и запуск служб...${NC}"
 apache2ctl configtest
 nginx -t
 systemctl restart php${PHP_VER}-fpm apache2 nginx mariadb vsftpd
 systemctl enable php${PHP_VER}-fpm apache2 nginx mariadb vsftpd
 
-echo -e "\n${YELLOW}Попытка автоустановки XenForo через CLI...${NC}"
-cd "$WEB_ROOT"
-if [ -f "cmd.php" ]; then
-    if su -s /bin/bash www-data -c "php${PHP_VER} cmd.php xf:install \
-    --url=\"http://${DOMAIN}/\" \
-    --admin-user=\"${XENFORO_ADMIN_USER}\" \
-    --admin-password=\"${XENFORO_ADMIN_PASS}\" \
-    --admin-email=\"${XENFORO_ADMIN_EMAIL}\" \
-    --board-title=\"${XENFORO_BOARD_TITLE}\" \
-    --board-url=\"http://${DOMAIN}/\"" 2>/dev/null; then
-        echo -e "${GREEN}✓ XenForo установлен автоматически через CLI!${NC}"
-        rm -rf "$WEB_ROOT/install" 2>/dev/null || true
-    else
-        echo -e "${YELLOW}⚠ Автоустановка через CLI не удалась. Используйте веб-установщик.${NC}"
-        echo -e "${YELLOW}  Откройте: http://${DOMAIN}/install/${NC}"
-        echo -e "${YELLOW}  Данные БД уже заполнены в config.php${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠ cmd.php не найден. Используйте веб-установщик.${NC}"
-    echo -e "${YELLOW}  Откройте: http://${DOMAIN}/install/${NC}"
-    echo -e "${YELLOW}  Данные БД уже заполнены в config.php${NC}"
-fi
-cd /
+echo -e "\n${YELLOW}⚠ Автоустановка через CLI не поддерживается в этой сборке XenForo.${NC}"
+echo -e "${YELLOW}Используйте веб-установщик (это займет 1 минуту):${NC}"
+echo -e "${YELLOW}  1. Откройте в браузере: http://${DOMAIN}/install/ (рекомендуется режим инкогнито)${NC}"
+echo -e "${YELLOW}  2. Нажмите 'Use these values' (данные БД уже подставлены из config.php)${NC}"
+echo -e "${YELLOW}  3. На шаге создания администратора введите:${NC}"
+echo -e "${YELLOW}     - User name: ${XENFORO_ADMIN_USER}${NC}"
+echo -e "${YELLOW}     - Password: ${XENFORO_ADMIN_PASS}${NC}"
+echo -e "${YELLOW}     - Email: ${XENFORO_ADMIN_EMAIL}${NC}"
+echo -e "${YELLOW}  4. После завершения установки обязательно удалите папку /install/${NC}"
 
 # ==========================================================
-#  СОХРАНЕНИЕ ДАННЫХ ДОСТУПА
+#  Итог - СОХРАНЯЕМ ПАРОЛИ В ФАЙЛ
 # ==========================================================
-
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "не определён")
-CREDENTIALS_FILE="/var/www/test.ru/erver_credentials_${DOMAIN}.txt"
-
+CREDENTIALS_FILE="/var/www/test.ru/server_credentials_${DOMAIN}.txt"
 cat > "$CREDENTIALS_FILE" <<EOF
 ╔════════════════════════════════════════════════════════════╗
 ║              ДАННЫЕ ДОСТУПА ДЛЯ ${DOMAIN}
 ╚════════════════════════════════════════════════════════════╝
-
 Дата создания : $(date)
 Сервер        : ${DOMAIN}
 Local IP      : ${LOCAL_IP}
 Public IP     : ${PUBLIC_IP}
-
-
 ┌────────────────────────────────────────────────────────────┐
 │ 🗄️  MYSQL
 └────────────────────────────────────────────────────────────┘
-
 Хост         : localhost
 Порт         : 3306
 База данных  : ${MYSQL_DB}
 Пользователь : ${MYSQL_USER}
 Пароль       : ${MYSQL_PASS}
-
-
 ┌────────────────────────────────────────────────────────────┐
 │ 📊 PHPMYADMIN
 └────────────────────────────────────────────────────────────┘
-
 URL          : http://${DOMAIN}/phpmyadmin
 Пользователь : ${MYSQL_USER}
 Пароль       : ${MYSQL_PASS}
-
-
 ┌────────────────────────────────────────────────────────────┐
 │ 🌐 XENFORO
 └────────────────────────────────────────────────────────────┘
-
 URL          : http://${DOMAIN}
-
 Admin User   : ${XENFORO_ADMIN_USER}
 Admin Pass   : ${XENFORO_ADMIN_PASS}
 Admin Email  : ${XENFORO_ADMIN_EMAIL}
-
-
 ┌────────────────────────────────────────────────────────────┐
 │ 📁 FTP
 └────────────────────────────────────────────────────────────┘
-
 Хост         : ${PUBLIC_IP}
 Порт         : 21
 Пользователь : ${FTP_USER}
 Пароль       : ${FTP_PASS}
 Режим        : Passive
-
 Passive ports: ${PASV_MIN}-${PASV_MAX}
-
-
 ┌────────────────────────────────────────────────────────────┐
 │ ⚠️  ВАЖНО
 └────────────────────────────────────────────────────────────┘
-
 • Храните этот файл в безопасном месте.
 • Не передавайте его третьим лицам.
 • После первой установки смените все пароли.
 • После установки XenForo удалите директорию /install/.
-
-
 ==============================================================
 EOF
 
-# Защищаем файл с паролями
 chmod 600 "$CREDENTIALS_FILE"
-
 
 # ==========================================================
 #  ФИНАЛЬНОЕ СООБЩЕНИЕ
 # ==========================================================
-
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║              ✅ УСТАНОВКА ЗАВЕРШЕНА                      ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-
 echo -e "${YELLOW}🌐 САЙТ / XENFORO${NC}"
 echo -e "   URL: http://${DOMAIN}"
 echo ""
-
 echo -e "${YELLOW}📊 PHPMYADMIN${NC}"
 echo -e "   URL: http://${DOMAIN}/phpmyadmin"
 echo ""
-
 echo -e "${YELLOW}🗄️  MYSQL${NC}"
 echo -e "   Порт: 3306"
 echo -e "   База: ${MYSQL_DB}"
 echo ""
-
 echo -e "${YELLOW}📡 FTP${NC}"
 echo -e "   Порт: 21"
 echo -e "   Passive: ${PASV_MIN}-${PASV_MAX}"
 echo ""
-
-
-# ==========================================================
-#  ДАННЫЕ ДОСТУПА
-# ==========================================================
-
 echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${RED}║                 🔐 ДАННЫЕ ДОСТУПА                        ║${NC}"
 echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-
 echo -e "${YELLOW}🗄️  MYSQL / PHPMYADMIN${NC}"
 echo -e "   ├─ Пользователь : ${MYSQL_USER}"
 echo -e "   ├─ Пароль       : ${MYSQL_PASS}"
 echo -e "   └─ База данных  : ${MYSQL_DB}"
 echo ""
-
 echo -e "${YELLOW}🌐 XENFORO ADMIN${NC}"
 echo -e "   ├─ URL          : http://${DOMAIN}"
 echo -e "   ├─ Пользователь : ${XENFORO_ADMIN_USER}"
 echo -e "   ├─ Пароль       : ${XENFORO_ADMIN_PASS}"
 echo -e "   └─ Email        : ${XENFORO_ADMIN_EMAIL}"
 echo ""
-
 echo -e "${YELLOW}📁 FTP${NC}"
 echo -e "   ├─ Host         : ${PUBLIC_IP}"
 echo -e "   ├─ Port         : 21"
@@ -543,16 +495,9 @@ echo -e "   ├─ User         : ${FTP_USER}"
 echo -e "   ├─ Password     : ${FTP_PASS}"
 echo -e "   └─ Mode         : Passive"
 echo ""
-
 echo -e "${YELLOW}💾 ФАЙЛ С ДАННЫМИ${NC}"
 echo -e "   ${CREDENTIALS_FILE}"
 echo ""
-
-
-# ==========================================================
-#  FTP ПОДКЛЮЧЕНИЕ
-# ==========================================================
-
 echo -e "${YELLOW}⚙️  НАСТРОЙКИ FTP-КЛИЕНТА${NC}"
 echo ""
 echo -e "   Локальное подключение:"
@@ -567,12 +512,6 @@ echo -e "   ├─ User: ${FTP_USER}"
 echo -e "   ├─ Pass: ${FTP_PASS}"
 echo -e "   └─ Mode: Passive"
 echo ""
-
-
-# ==========================================================
-#  XENFORO — РУЧНАЯ УСТАНОВКА
-# ==========================================================
-
 echo -e "${YELLOW}📝 ЕСЛИ CLI-УСТАНОВКА XENFORO НЕ ЗАВЕРШИЛАСЬ${NC}"
 echo ""
 echo -e "   ${GREEN}1.${NC} Откройте:"
@@ -588,12 +527,6 @@ echo ""
 echo -e "   ${GREEN}5.${NC} После установки удалите:"
 echo -e "      /install/"
 echo ""
-
-
-# ==========================================================
-#  БЕЗОПАСНОСТЬ
-# ==========================================================
-
 echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${RED}║                    ⚠️  ВНИМАНИЕ                           ║${NC}"
 echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
@@ -606,11 +539,8 @@ echo -e "   📦 Скопируйте файл в безопасное мест�
 echo -e "   🔄 После установки смените пароли."
 echo -e "   🗑️  Не оставляйте файл с паролями в доступном месте."
 echo ""
-
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}              🎉 ГОТОВО! УДАЧНОЙ РАБОТЫ!                  ${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
-
 cat "$CREDENTIALS_FILE"
-
