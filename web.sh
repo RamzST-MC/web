@@ -13,7 +13,7 @@ fi
 DOMAIN="test.ru"
 WEB_ROOT="/var/www/$DOMAIN/html"
 APACHE_PORT=8080
-PHP_VER="8.3"
+PHP_VER="8.4"
 PHP_SOCK="/run/php/php${PHP_VER}-fpm.sock"
 FTP_USER="ftpuser"
 MYSQL_DB="xenforo_db"
