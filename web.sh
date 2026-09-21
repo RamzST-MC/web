@@ -407,94 +407,209 @@ fi
 cd /
 
 # ==========================================================
-#  Итог - СОХРАНЯЕМ ПАРОЛИ В ФАЙЛ
+#  СОХРАНЕНИЕ ДАННЫХ ДОСТУПА
 # ==========================================================
+
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "не определён")
 CREDENTIALS_FILE="/root/server_credentials_${DOMAIN}.txt"
-cat > "$CREDENTIALS_FILE" <<EOF
-========================================
-ДАННЫЕ ДОСТУПА ДЛЯ ${DOMAIN}
-Дата: $(date)
-========================================
- MySQL:
-   Хост: localhost
-   Порт: 3306
-   База данных: ${MYSQL_DB}
-   Пользователь: ${MYSQL_USER}
-   Пароль: ${MYSQL_PASS}
- phpMyAdmin:
-   URL: http://${DOMAIN}/phpmyadmin
-   Пользователь: ${MYSQL_USER}
-   Пароль: ${MYSQL_PASS}
 
- XenForo:
-   URL: http://${DOMAIN}
-   База данных: ${MYSQL_DB}
-   DB User: ${MYSQL_USER}
-   DB Pass: ${MYSQL_PASS}
-   Admin User: ${XENFORO_ADMIN_USER}
-   Admin Pass: ${XENFORO_ADMIN_PASS}
-   Admin Email: ${XENFORO_ADMIN_EMAIL}
-⚠️  ВАЖНО:
-   - Сохраните этот файл в безопасном месте!
-   - Смените все пароли после первой установки!
-   - После установки XenForo удалите папку /install/
-========================================
+cat > "$CREDENTIALS_FILE" <<EOF
+╔════════════════════════════════════════════════════════════╗
+║              ДАННЫЕ ДОСТУПА ДЛЯ ${DOMAIN}
+╚════════════════════════════════════════════════════════════╝
+
+Дата создания : $(date)
+Сервер        : ${DOMAIN}
+Local IP      : ${LOCAL_IP}
+Public IP     : ${PUBLIC_IP}
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 🗄️  MYSQL
+└────────────────────────────────────────────────────────────┘
+
+Хост         : localhost
+Порт         : 3306
+База данных  : ${MYSQL_DB}
+Пользователь : ${MYSQL_USER}
+Пароль       : ${MYSQL_PASS}
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 📊 PHPMYADMIN
+└────────────────────────────────────────────────────────────┘
+
+URL          : http://${DOMAIN}/phpmyadmin
+Пользователь : ${MYSQL_USER}
+Пароль       : ${MYSQL_PASS}
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 🌐 XENFORO
+└────────────────────────────────────────────────────────────┘
+
+URL          : http://${DOMAIN}
+
+Admin User   : ${XENFORO_ADMIN_USER}
+Admin Pass   : ${XENFORO_ADMIN_PASS}
+Admin Email  : ${XENFORO_ADMIN_EMAIL}
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 📁 FTP
+└────────────────────────────────────────────────────────────┘
+
+Хост         : ${PUBLIC_IP}
+Порт         : 21
+Пользователь : ${FTP_USER}
+Пароль       : ${FTP_PASS}
+Режим        : Passive
+
+Passive ports: ${PASV_MIN}-${PASV_MAX}
+
+
+┌────────────────────────────────────────────────────────────┐
+│ ⚠️  ВАЖНО
+└────────────────────────────────────────────────────────────┘
+
+• Храните этот файл в безопасном месте.
+• Не передавайте его третьим лицам.
+• После первой установки смените все пароли.
+• После установки XenForo удалите директорию /install/.
+
+
+==============================================================
 EOF
 
+# Защищаем файл с паролями
+chmod 600 "$CREDENTIALS_FILE"
+
+
+# ==========================================================
+#  ФИНАЛЬНОЕ СООБЩЕНИЕ
+# ==========================================================
+
 echo ""
-echo -e "${GREEN}=============================================================${NC}"
-echo -e "${GREEN}  ✅ Установка завершена успешно!${NC}"
-echo -e "${GREEN}=============================================================${NC}"
-echo -e "  🌐 Сайт/XenForo: http://${DOMAIN}"
-echo -e "  📊 phpMyAdmin:   http://${DOMAIN}/phpmyadmin"
-echo -e "  🗄️  MySQL:        порт 3306"
-echo -e "  📡 FTP Passive:  порты ${PASV_MIN}-${PASV_MAX}"
-echo -e "${GREEN}=============================================================${NC}"
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║              ✅ УСТАНОВКА ЗАВЕРШЕНА                      ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${RED}🔐 СОХРАНЁННЫЕ ДАННЫЕ ДОСТУПА:${NC}"
-echo -e "   Файл: ${CREDENTIALS_FILE}"
-echo ""
-echo -e "${YELLOW}👤 FTP:${NC} ${FTP_USER} / ${FTP_PASS} (UID: $(id -u $FTP_USER))"
-echo -e "${YELLOW}🗄️  MySQL / phpMyAdmin:${NC}"
-echo -e "   Пользователь: ${MYSQL_USER}"
-echo -e "   Пароль: ${MYSQL_PASS}"
-echo -e "   База данных: ${MYSQL_DB}"
-echo ""
-echo -e "${YELLOW} XenForo Admin:${NC}"
-echo -e "   User: ${XENFORO_ADMIN_USER}"
-echo -e "   Pass: ${XENFORO_ADMIN_PASS}"
-echo -e "   Email: ${XENFORO_ADMIN_EMAIL}"
+
+echo -e "${YELLOW}🌐 САЙТ / XENFORO${NC}"
 echo -e "   URL: http://${DOMAIN}"
-echo -e "   База данных: ${MYSQL_DB}"
-echo -e "   DB User: ${MYSQL_USER}"
-echo -e "   DB Pass: ${MYSQL_PASS}"
-echo -e "   Admin User: ${XENFORO_ADMIN_USER}"
-echo -e "   Admin Pass: ${XENFORO_ADMIN_PASS}"
-echo -e "   Admin Email: ${XENFORO_ADMIN_EMAIL}"
-echo -e "⚠️  ВАЖНО:"
-echo -e "   - Сохраните этот файл в безопасном месте!"
-echo -e "   - Смените все пароли после первой установки!"
-echo -e "   - После установки XenForo удалите папку /install"
 echo ""
-echo -e "${YELLOW}⚙️  Настройки FTP-клиента:${NC}"
-echo -e "   • Локально:  ${LOCAL_IP}:21 (Пассивный режим)"
-echo -e "   • Внешне:    ${PUBLIC_IP}:21 (Пассивный режим)"
-echo -e "      Хост: ${PUBLIC_IP} (внешний) или ${LOCAL_IP} (локальный)"
-echo -e "      Порт: 21"
-echo -e "      Пользователь: ${FTP_USER}"
-echo -e "      Пароль: ${FTP_PASS}"
-echo -e "      Режим: Пассивный (Passive)"
+
+echo -e "${YELLOW}📊 PHPMYADMIN${NC}"
+echo -e "   URL: http://${DOMAIN}/phpmyadmin"
 echo ""
-echo -e "${YELLOW}📝 Для завершения установки XenForo (если CLI не сработал):${NC}"
-echo -e "   1. Откройте http://${DOMAIN}/install/ в режиме ИНКОГНИТО"
-echo -e "   2. Нажмите 'Use these values' (данные теперь гарантированно подставятся)"
-echo -e "   3. После установки удалите папку /install/"
+
+echo -e "${YELLOW}🗄️  MYSQL${NC}"
+echo -e "   Порт: 3306"
+echo -e "   База: ${MYSQL_DB}"
 echo ""
-echo -e "${RED}⚠  ВНИМАНИЕ:${NC}"
-echo -e "   • Все пароли СЛУЧАЙНЫЕ и сохранены в ${CREDENTIALS_FILE}"
-echo -e "   • СКОПИРУЙТЕ этот файл в безопасное место!"
-echo -e "   • Смените пароли после установки!"
+
+echo -e "${YELLOW}📡 FTP${NC}"
+echo -e "   Порт: 21"
+echo -e "   Passive: ${PASV_MIN}-${PASV_MAX}"
+echo ""
+
+
+# ==========================================================
+#  ДАННЫЕ ДОСТУПА
+# ==========================================================
+
+echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║                 🔐 ДАННЫЕ ДОСТУПА                        ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+echo -e "${YELLOW}🗄️  MYSQL / PHPMYADMIN${NC}"
+echo -e "   ├─ Пользователь : ${MYSQL_USER}"
+echo -e "   ├─ Пароль       : ${MYSQL_PASS}"
+echo -e "   └─ База данных  : ${MYSQL_DB}"
+echo ""
+
+echo -e "${YELLOW}🌐 XENFORO ADMIN${NC}"
+echo -e "   ├─ URL          : http://${DOMAIN}"
+echo -e "   ├─ Пользователь : ${XENFORO_ADMIN_USER}"
+echo -e "   ├─ Пароль       : ${XENFORO_ADMIN_PASS}"
+echo -e "   └─ Email        : ${XENFORO_ADMIN_EMAIL}"
+echo ""
+
+echo -e "${YELLOW}📁 FTP${NC}"
+echo -e "   ├─ Host         : ${PUBLIC_IP}"
+echo -e "   ├─ Port         : 21"
+echo -e "   ├─ User         : ${FTP_USER}"
+echo -e "   ├─ Password     : ${FTP_PASS}"
+echo -e "   └─ Mode         : Passive"
+echo ""
+
+echo -e "${YELLOW}💾 ФАЙЛ С ДАННЫМИ${NC}"
+echo -e "   ${CREDENTIALS_FILE}"
+echo ""
+
+
+# ==========================================================
+#  FTP ПОДКЛЮЧЕНИЕ
+# ==========================================================
+
+echo -e "${YELLOW}⚙️  НАСТРОЙКИ FTP-КЛИЕНТА${NC}"
+echo ""
+echo -e "   Локальное подключение:"
+echo -e "   ├─ Host: ${LOCAL_IP}"
+echo -e "   └─ Port: 21"
+echo ""
+echo -e "   Внешнее подключение:"
+echo -e "   ├─ Host: ${PUBLIC_IP}"
+echo -e "   └─ Port: 21"
+echo ""
+echo -e "   ├─ User: ${FTP_USER}"
+echo -e "   ├─ Pass: ${FTP_PASS}"
+echo -e "   └─ Mode: Passive"
+echo ""
+
+
+# ==========================================================
+#  XENFORO — РУЧНАЯ УСТАНОВКА
+# ==========================================================
+
+echo -e "${YELLOW}📝 ЕСЛИ CLI-УСТАНОВКА XENFORO НЕ ЗАВЕРШИЛАСЬ${NC}"
+echo ""
+echo -e "   ${GREEN}1.${NC} Откройте:"
+echo -e "      http://${DOMAIN}/install/"
+echo ""
+echo -e "   ${GREEN}2.${NC} Откройте страницу в режиме ИНКОГНИТО."
+echo ""
+echo -e "   ${GREEN}3.${NC} Нажмите:"
+echo -e "      ${YELLOW}Use these values${NC}"
+echo ""
+echo -e "   ${GREEN}4.${NC} Завершите установку XenForo."
+echo ""
+echo -e "   ${GREEN}5.${NC} После установки удалите:"
+echo -e "      /install/"
+echo ""
+
+
+# ==========================================================
+#  БЕЗОПАСНОСТЬ
+# ==========================================================
+
+echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║                    ⚠️  ВНИМАНИЕ                           ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "   🔐 Все пароли сгенерированы автоматически."
+echo -e "   💾 Данные сохранены в:"
+echo -e "      ${CREDENTIALS_FILE}"
+echo ""
+echo -e "   📦 Скопируйте файл в безопасное место."
+echo -e "   🔄 После установки смените пароли."
+echo -e "   🗑️  Не оставляйте файл с паролями в доступном месте."
+echo ""
+
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}              🎉 ГОТОВО! УДАЧНОЙ РАБОТЫ!                  ${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
 
 cat "$CREDENTIALS_FILE"
