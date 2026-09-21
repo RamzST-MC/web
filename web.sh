@@ -21,7 +21,6 @@ MYSQL_USER="xenforo_user"
 PASV_MIN=40000
 PASV_MAX=40100
 
-# Генерация паролей ТОЛЬКО из букв и цифр (без спецсимволов!)
 echo -e "${YELLOW}Генерация случайных паролей (без спецсимволов)...${NC}"
 MYSQL_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
 FTP_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
@@ -160,13 +159,8 @@ fi
 #  ИСПРАВЛЕНО: Создаём config.php в НУЖНОМ вам формате
 # ==========================================================
 echo -e "${YELLOW}Создание config.php в правильном формате...${NC}"
-
-# Удаляем старый файл, если он есть
 rm -f "$WEB_ROOT/src/config.php"
 
-# Создаём файл с форматом $config['db']['...']
-# Обратите внимание: \$config экранирован, чтобы bash не пытался его интерпретировать, 
-# а ${MYSQL_USER} и другие переменные подставятся корректно.
 cat > "$WEB_ROOT/src/config.php" <<XENCONFIG
 <?php
 
@@ -184,7 +178,6 @@ XENCONFIG
 chown www-data:www-data "$WEB_ROOT/src/config.php"
 chmod 644 "$WEB_ROOT/src/config.php"
 
-# ПРОВЕРКА: читаем файл через PHP в новом формате
 echo -e "${YELLOW}Проверка чтения config.php...${NC}"
 if sudo -u www-data php -r "
 require '${WEB_ROOT}/src/config.php';
@@ -197,11 +190,9 @@ echo 'OK: user=' . \$config['db']['username'] . ' db=' . \$config['db']['dbname'
     echo -e "${GREEN}✓ config.php корректен и читается${NC}"
 else
     echo -e "${RED}✗ Ошибка в config.php!${NC}"
-    cat "$WEB_ROOT/src/config.php"
     exit 1
 fi
 
-# Перезапускаем PHP-FPM для сброса кеша OPCache
 systemctl restart php${PHP_VER}-fpm
 
 # ==========================================================
@@ -374,43 +365,30 @@ fi
 netfilter-persistent save 2>/dev/null || true
 
 # ==========================================================
-#  12. Перезапуск служб + АВТОУСТАНОВКА XENFORO
+#  12. Перезапуск служб + ИНСТРУКЦИЯ ПО УСТАНОВКЕ
 # ==========================================================
-echo -e "\n${YELLOW}[12/12] Проверка, запуск служб и автоустановка XenForo...${NC}"
+echo -e "\n${YELLOW}[12/12] Проверка и запуск служб...${NC}"
 apache2ctl configtest
 nginx -t
 systemctl restart php${PHP_VER}-fpm apache2 nginx mariadb vsftpd
 systemctl enable php${PHP_VER}-fpm apache2 nginx mariadb vsftpd
 
-echo -e "\n${YELLOW}Попытка автоустановки XenForo через CLI...${NC}"
-cd "$WEB_ROOT"
-if [ -f "cmd.php" ]; then
-    if su -s /bin/bash www-data -c "php${PHP_VER} cmd.php xf:install \
-    --url=\"http://${DOMAIN}/\" \
-    --admin-user=\"${XENFORO_ADMIN_USER}\" \
-    --admin-password=\"${XENFORO_ADMIN_PASS}\" \
-    --admin-email=\"${XENFORO_ADMIN_EMAIL}\" \
-    --board-title=\"${XENFORO_BOARD_TITLE}\" \
-    --board-url=\"http://${DOMAIN}/\"" 2>/dev/null; then
-        echo -e "${GREEN}✓ XenForo установлен автоматически через CLI!${NC}"
-        rm -rf "$WEB_ROOT/install" 2>/dev/null || true
-    else
-        echo -e "${YELLOW}⚠ Автоустановка через CLI не удалась. Используйте веб-установщик.${NC}"
-        echo -e "${YELLOW}  Откройте: http://${DOMAIN}/install/${NC}"
-        echo -e "${YELLOW}  Данные БД уже заполнены в config.php${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠ cmd.php не найден. Используйте веб-установщик.${NC}"
-    echo -e "${YELLOW}  Откройте: http://${DOMAIN}/install/${NC}"
-    echo -e "${YELLOW}  Данные БД уже заполнены в config.php${NC}"
-fi
-cd /
+# --- ИНСТРУКЦИЯ ПО ВЕБ-УСТАНОВКЕ (CLI не поддерживается в этой сборке) ---
+echo -e "\n${YELLOW}⚠ Автоустановка через CLI не поддерживается в этой сборке XenForo.${NC}"
+echo -e "${YELLOW}Используйте веб-установщик (это займет 1 минуту):${NC}"
+echo -e "${YELLOW}  1. Откройте в браузере: http://${DOMAIN}/install/ (рекомендуется режим инкогнито)${NC}"
+echo -e "${YELLOW}  2. Нажмите 'Use these values' (данные БД уже подставлены из config.php)${NC}"
+echo -e "${YELLOW}  3. На шаге создания администратора введите:${NC}"
+echo -e "${YELLOW}     - User name: ${XENFORO_ADMIN_USER}${NC}"
+echo -e "${YELLOW}     - Password: ${XENFORO_ADMIN_PASS}${NC}"
+echo -e "${YELLOW}     - Email: ${XENFORO_ADMIN_EMAIL}${NC}"
+echo -e "${YELLOW}  4. После завершения установки обязательно удалите папку /install/${NC}"
 
 # ==========================================================
 #  Итог - СОХРАНЯЕМ ПАРОЛИ В ФАЙЛ
 # ==========================================================
 LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "не определён")
-CREDENTIALS_FILE="/var/www/test.ru/server_credentials_${DOMAIN}.txt"
+CREDENTIALS_FILE="/root/server_credentials_${DOMAIN}.txt"
 cat > "$CREDENTIALS_FILE" <<EOF
 ========================================
 ДАННЫЕ ДОСТУПА ДЛЯ ${DOMAIN}
@@ -460,30 +438,4 @@ echo ""
 echo -e "${RED}🔐 СОХРАНЁННЫЕ ДАННЫЕ ДОСТУПА:${NC}"
 echo -e "   Файл: ${CREDENTIALS_FILE}"
 echo ""
-echo -e "${YELLOW}👤 FTP:${NC} ${FTP_USER} / ${FTP_PASS} (UID: $(id -u $FTP_USER))"
-echo -e "${YELLOW}🗄️  MySQL / phpMyAdmin:${NC}"
-echo -e "   Пользователь: ${MYSQL_USER}"
-echo -e "   Пароль: ${MYSQL_PASS}"
-echo -e "   База данных: ${MYSQL_DB}"
-echo ""
-echo -e "${YELLOW} XenForo Admin:${NC}"
-echo -e "   User: ${XENFORO_ADMIN_USER}"
-echo -e "   Pass: ${XENFORO_ADMIN_PASS}"
-echo -e "   Email: ${XENFORO_ADMIN_EMAIL}"
-echo ""
-echo -e "${YELLOW}⚙️  Настройки FTP-клиента:${NC}"
-echo -e "   • Локально:  ${LOCAL_IP}:21 (Пассивный режим)"
-echo -e "   • Внешне:    ${PUBLIC_IP}:21 (Пассивный режим)"
-echo ""
-echo -e "${YELLOW}📝 Для завершения установки XenForo (если CLI не сработал):${NC}"
-echo -e "   1. Откройте http://${DOMAIN}/install/ в режиме ИНКОГНИТО"
-echo -e "   2. Нажмите 'Use these values' (данные теперь гарантированно подставятся)"
-echo -e "   3. После установки удалите папку /install/"
-echo ""
-echo -e "${RED}⚠  ВНИМАНИЕ:${NC}"
-echo -e "   • Все пароли СЛУЧАЙНЫЕ и сохранены в ${CREDENTIALS_FILE}"
-echo -e "   • СКОПИРУЙТЕ этот файл в безопасное место!"
-echo -e "   • Смените пароли после установки!"
-echo ""
-
 cat "$CREDENTIALS_FILE"
