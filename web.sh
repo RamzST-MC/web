@@ -543,6 +543,6 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}              🎉 ГОТОВО! УДАЧНОЙ РАБОТЫ!                  ${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
-sudo apt remove php8.5-cli
-sudo apt autoremove
+sudo apt remove -y php8.5-cli
+sudo apt autoremove -y
 cat "$CREDENTIALS_FILE"
